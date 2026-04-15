@@ -2,10 +2,10 @@ const { test } = require('@playwright/test');
 const {
   clickSsoButton,
   ensureAuthStateDir,
-  expectSuccessfulLogin,
   getAuthStatePath,
   getRequiredEnv,
   gotoLogin,
+  stayOnHomepage,
   submitEmailStep,
   waitForEmailRouting,
 } = require('./helpers');
@@ -26,7 +26,7 @@ test.describe('Auth setup flows', () => {
       throw new Error(`Expected SSO after entering email, but got route: ${route}`);
     }
 
-    await expectSuccessfulLogin(page);
+    await stayOnHomepage(page);
     ensureAuthStateDir();
     await context.storageState({ path: authStatePath });
   });

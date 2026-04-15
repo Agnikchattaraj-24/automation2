@@ -1,10 +1,12 @@
 require('dotenv').config();
 
 const { defineConfig, devices } = require('@playwright/test');
+const fs = require('fs');
 const path = require('path');
 
 const timeoutMs = Number(process.env.LOGIN_TIMEOUT_MS || 45000);
 const authStatePath = process.env.AUTH_STATE_PATH || path.join(__dirname, 'playwright/.auth/user.json');
+const hasAuthState = fs.existsSync(authStatePath);
 
 module.exports = defineConfig({
   testDir: './tests',
@@ -38,7 +40,7 @@ module.exports = defineConfig({
       dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
-        storageState: authStatePath,
+        ...(hasAuthState ? { storageState: authStatePath } : {}),
       },
     },
   ],

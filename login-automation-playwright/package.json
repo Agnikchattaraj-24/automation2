@@ -6,8 +6,8 @@
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
-    "test:setup": "playwright test --project=setup tests/auth.setup.js --headed",
-    "test:smoke": "playwright test --project=chromium tests/login.spec.js --headed"
+    "test:setup": "node scripts/setupPersistentAuth.js",
+    "test:smoke": "node scripts/runPersistentSmoke.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0",

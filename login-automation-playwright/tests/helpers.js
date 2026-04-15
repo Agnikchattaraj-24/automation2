@@ -5,6 +5,8 @@ const path = require('path');
 const DEFAULT_POST_LOGIN_REGEX = /securehome|ops-center|overview/i;
 const DEFAULT_SSO_HOST_REGEX = /(microsoftonline|login\.microsoft|okta|google|onelogin|auth0)/i;
 const DEFAULT_AUTH_STATE_PATH = path.join(__dirname, '..', 'playwright/.auth/user.json');
+const DEFAULT_PERSISTENT_PROFILE_PATH = path.join(__dirname, '..', 'playwright/.profile');
+const HOMEPAGE_PAUSE_MS = 14000;
 
 function getRequiredEnv(name) {
   const value = process.env[name];
@@ -25,6 +27,14 @@ function getAuthStatePath() {
 
 function ensureAuthStateDir() {
   fs.mkdirSync(path.dirname(getAuthStatePath()), { recursive: true });
+}
+
+function getPersistentProfilePath() {
+  return process.env.PERSISTENT_PROFILE_PATH || DEFAULT_PERSISTENT_PROFILE_PATH;
+}
+
+function ensurePersistentProfileDir() {
+  fs.mkdirSync(getPersistentProfilePath(), { recursive: true });
 }
 
 async function gotoLogin(page) {
@@ -144,7 +154,11 @@ async function submitEmailStep(page, email) {
 
 async function waitForEmailRouting(page) {
   const ssoButton = page.getByRole('button', { name: /continue with single sign-on/i }).first();
-  const passwordFallback = page.getByRole('button', { name: /use password instead/i }).first();
+  const passwordFallbackCandidates = [
+    page.getByRole('button', { name: /use password instead/i }).first(),
+    page.getByRole('link', { name: /use password instead/i }).first(),
+    page.getByText(/use password instead/i).first(),
+  ];
   const passwordField = page.locator('input[type="password"]').first();
   const ssoRegex = getOptionalRegex('SSO_HOST_REGEX', DEFAULT_SSO_HOST_REGEX);
 
@@ -161,8 +175,10 @@ async function waitForEmailRouting(page) {
       return 'password_form';
     }
 
-    if (await passwordFallback.isVisible().catch(() => false)) {
-      return 'password_option';
+    for (const candidate of passwordFallbackCandidates) {
+      if (await candidate.isVisible().catch(() => false)) {
+        return 'password_option';
+      }
     }
 
     if (await ssoButton.isVisible().catch(() => false)) {
@@ -207,7 +223,24 @@ async function fillEmailLogin(page, email, password) {
   }
 
   if (route === 'password_option') {
-    await page.getByRole('button', { name: /use password instead/i }).first().click();
+    const passwordFallbackCandidates = [
+      page.getByRole('button', { name: /use password instead/i }).first(),
+      page.getByRole('link', { name: /use password instead/i }).first(),
+      page.getByText(/use password instead/i).first(),
+    ];
+
+    let clicked = false;
+    for (const candidate of passwordFallbackCandidates) {
+      if (await candidate.isVisible().catch(() => false)) {
+        await candidate.click();
+        clicked = true;
+        break;
+      }
+    }
+
+    if (!clicked) {
+      throw new Error('Password login was offered, but the "Use password instead" control could not be clicked.');
+    }
   }
 
   const passwordInput = await resolvePasswordInput(page);
@@ -254,6 +287,11 @@ async function expectSuccessfulLogin(page) {
   await expect(page).toHaveURL(postLoginRegex, { timeout: 120000 });
 }
 
+async function stayOnHomepage(page, durationMs = HOMEPAGE_PAUSE_MS) {
+  await expectSuccessfulLogin(page);
+  await page.waitForTimeout(durationMs);
+}
+
 async function expectSsoRedirect(page, popupPromise) {
   const ssoHostRegex = getOptionalRegex('SSO_HOST_REGEX', DEFAULT_SSO_HOST_REGEX);
 
@@ -278,8 +316,11 @@ module.exports = {
   expectSsoRedirect,
   fillEmailLogin,
   getAuthStatePath,
+  getPersistentProfilePath,
   getRequiredEnv,
   gotoLogin,
+  ensurePersistentProfileDir,
+  stayOnHomepage,
   submitEmailStep,
   waitForEmailRouting,
 };
