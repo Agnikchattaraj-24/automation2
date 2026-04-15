@@ -1,0 +1,8 @@
+.env
+node_modules
+playwright-report
+test-results
+diagnostic.png
+post-email-step.png
+password-step.png
+playwright/.auth
